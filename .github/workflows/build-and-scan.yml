@@ -37,5 +37,5 @@ jobs:
         env:
           TELEX_ENDPOINT: ${{ secrets.TELEX_ENDPOINT }}
         run: |
-          ./vulnerability_checker myapp:${{ github.sha }} $TELEX_ENDPOINT
+          ./vulnerability_checker sometelexname:${{ github.sha }} $TELEX_ENDPOINT
 
