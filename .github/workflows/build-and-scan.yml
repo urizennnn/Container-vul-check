@@ -1,0 +1,41 @@
+name: Build and Vulnerability Check
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build-and-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
+      - name: Install Trivy
+        run: |
+          curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin
+          trivy --version
+
+      - name: Build Docker Image
+        run: |
+          docker build -t sometelexname:${{ github.sha }} .
+
+      - name: Install Go 
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.20'
+
+      - name: Build Vulnerability Checker
+        run: |
+          go build -o vulnerability_checker main.go
+
+      - name: Run Vulnerability Checker
+        env:
+          TELEX_ENDPOINT: ${{ secrets.TELEX_ENDPOINT }}
+        run: |
+          ./vulnerability_checker myapp:${{ github.sha }} $TELEX_ENDPOINT
+
