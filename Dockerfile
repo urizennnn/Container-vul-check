@@ -1,6 +1,6 @@
 FROM golang:1.20-alpine AS builder
 WORKDIR /app
-COPY go.mod go.sum ./
+COPY go.mod  ./
 RUN sed -i 's/^go 1\.23\.0/go 1.23/' go.mod
 RUN go mod download
 COPY . .
