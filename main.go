@@ -79,104 +79,33 @@ func notifyTelex(message, telexEndpoint string) bool {
 	return true
 }
 
-type IntegrationConfig struct {
-	CreatedAt    string       `json:"created_at"`
-	UpdatedAt    string       `json:"updated_at"`
-	Descriptions Descriptions `json:"descriptions"`
-}
-
-type Descriptions struct {
-	AppName             string    `json:"app_name"`
-	AppDescription      string    `json:"app_description"`
-	AppLogo             string    `json:"app_logo"`
-	AppURL              string    `json:"app_url"`
-	BackgroundColor     string    `json:"background_color"`
-	IsActive            bool      `json:"is_active"`
-	IntegrationType     string    `json:"integration_type"`
-	IntegrationCategory string    `json:"integration_category"`
-	KeyFeatures         []string  `json:"key_features"`
-	Author              string    `json:"author"`
-	Settings            []Setting `json:"settings"`
-}
-
-type Setting struct {
-	Label     string `json:"label"`
-	Type      string `json:"type"`
-	Required  bool   `json:"required"`
-	Default   string `json:"default"`
-	TargetURL string `json:"target_url"`
-	TickURL   string `json:"tick_url"`
-}
-
-func integrationHandler(w http.ResponseWriter, r *http.Request) {
-	config := IntegrationConfig{
-		CreatedAt: "2025-02-23",
-		UpdatedAt: "2025-02-23",
-		Descriptions: Descriptions{
-			AppName:             "Container Vulnerability Scanner",
-			AppDescription:      "This integration scans container images for vulnerabilities and notifies the user if high severity vulnerabilities are found.",
-			AppLogo:             "",
-			AppURL:              "",
-			BackgroundColor:     "",
-			IsActive:            true,
-			IntegrationType:     "output",
-			IntegrationCategory: "security",
-			KeyFeatures: []string{
-				"Scans container images for vulnerabilities",
-				"Notifies user if high severity vulnerabilities are found",
-
-			},
-			Author: "Victor Akaaha",
-			Settings: []Setting{
-				{
-					Label:     "Telex Endpoint",
-					Type:      "text",
-					Required:  true,
-					Default:   "",
-					TargetURL: "",
-					TickURL:   "",
-				},
-			},
-		},
-	}
-	w.Header().Set("Content-Type", "application/json")
-	if err := json.NewEncoder(w).Encode(config); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-	}
-}
-
 func main() {
-	if len(os.Args) > 1 && os.Args[1] == "serve" {
-		http.HandleFunc("/integration", integrationHandler)
-		log.Println("Server is listening on :8080")
-		log.Fatal(http.ListenAndServe(":8080", nil))
-	} else {
-		if len(os.Args) < 3 {
-			fmt.Println("Usage: go run main.go <container_image> <telex_endpoint>")
+
+	if len(os.Args) < 3 {
+		fmt.Println("Usage: go run main.go <container_image> <telex_endpoint>")
+		os.Exit(1)
+	}
+	containerImage := os.Args[1]
+	telexEndpoint := os.Args[2]
+	fmt.Printf("Scanning container image: %s\n", containerImage)
+	scanResults, err := scanImage(containerImage)
+	if err != nil {
+		log.Printf("Error: %v", err)
+		os.Exit(1)
+	}
+	flaggedVulns := evaluateVulnerabilities(scanResults, "HIGH")
+	if len(flaggedVulns) > 0 {
+		message := fmt.Sprintf("Vulnerability Scan Alert: %d high/critical vulnerability(s) found in %s. Please review immediately.", len(flaggedVulns), containerImage)
+		fmt.Println(message)
+		if notifyTelex(message, telexEndpoint) {
+			fmt.Println("Telex notified successfully. Halting pipeline.")
 			os.Exit(1)
-		}
-		containerImage := os.Args[1]
-		telexEndpoint := os.Args[2]
-		fmt.Printf("Scanning container image: %s\n", containerImage)
-		scanResults, err := scanImage(containerImage)
-		if err != nil {
-			log.Printf("Error: %v", err)
-			os.Exit(1)
-		}
-		flaggedVulns := evaluateVulnerabilities(scanResults, "HIGH")
-		if len(flaggedVulns) > 0 {
-			message := fmt.Sprintf("Vulnerability Scan Alert: %d high/critical vulnerability(s) found in %s. Please review immediately.", len(flaggedVulns), containerImage)
-			fmt.Println(message)
-			if notifyTelex(message, telexEndpoint) {
-				fmt.Println("Telex notified successfully. Halting pipeline.")
-				os.Exit(1)
-			} else {
-				fmt.Println("Telex notification failed. Halting pipeline.")
-				os.Exit(1)
-			}
 		} else {
-			fmt.Println("No high severity vulnerabilities detected. Proceeding with pipeline.")
-			os.Exit(0)
+			fmt.Println("Telex notification failed. Halting pipeline.")
+			os.Exit(1)
 		}
+	} else {
+		fmt.Println("No high severity vulnerabilities detected. Proceeding with pipeline.")
+		os.Exit(0)
 	}
 }
